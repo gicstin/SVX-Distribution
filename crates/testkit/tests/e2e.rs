@@ -6,6 +6,7 @@ use std::time::Duration;
 use svxdist::Error;
 use svxdist::install::{Detected, Install};
 use svxdist::launch;
+use svxdist::procs;
 use svxdist::release;
 use svxdist::testkeys;
 use svxdist::time::now_unix;
@@ -322,6 +323,53 @@ fn running_game_blocks_activation_until_closed() {
     s.activate(&install, &mut q).unwrap();
     drop(_lock);
     assert_matches_payload(&f, &dir, "1.1.0");
+}
+
+#[test]
+fn signed_index_carries_changelog() {
+    let mut f = Fixture::new("changelog");
+    f.catalog.changelog = svxdist::changelog::parse("## [1.0.0] - 2026-10-10\n### Added\n- First\n").unwrap();
+    f.publish("1.0.0");
+    let mut s = f.session();
+    let idx = s.check().unwrap();
+    assert_eq!(idx.changelog.len(), 1);
+    assert_eq!(idx.changelog[0].sections[0].items, vec!["First"]);
+}
+
+#[test]
+fn force_close_only_ends_this_installs_game() {
+    let a = fresh_dir("close-a");
+    let b = fresh_dir("close-b");
+    let game_a = Install::new(&a, P).exe();
+    let game_b = Install::new(&b, P).exe();
+    let helper = a.join("helper");
+    for p in [&game_a, &game_b, &helper] {
+        fs::copy(env!("CARGO_BIN_EXE_svx-fixture-game"), p).unwrap();
+    }
+    let spawn = |exe: &std::path::Path| std::process::Command::new(exe).env("SVX_FIXTURE_SLEEP", "60").spawn().unwrap();
+    let mut targets = vec![spawn(&game_a), spawn(&game_a)];
+    let mut others = vec![spawn(&game_b), spawn(&helper)];
+    std::thread::sleep(Duration::from_millis(300));
+    let mut found = procs::instances_of(&game_a);
+    found.sort();
+    let mut want: Vec<u32> = targets.iter().map(|c| c.id()).collect();
+    want.sort();
+    assert_eq!(found, want);
+    let report = procs::force_close(&game_a, Duration::from_secs(5)).unwrap();
+    assert_eq!(report, procs::CloseReport { closed: 2, remaining: 0 });
+    for c in &mut targets {
+        assert!(c.try_wait().unwrap().is_some());
+    }
+    for c in &mut others {
+        assert!(c.try_wait().unwrap().is_none());
+    }
+    assert!(procs::instances_of(&game_a).is_empty());
+    assert_eq!(procs::instances_of(&game_b), vec![others[0].id()]);
+    assert_eq!(procs::force_close(&game_a, Duration::from_secs(1)).unwrap(), procs::CloseReport::default());
+    for c in &mut others {
+        c.kill().unwrap();
+        c.wait().unwrap();
+    }
 }
 
 #[test]

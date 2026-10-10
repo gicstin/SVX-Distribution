@@ -6,10 +6,11 @@ export PATH="$HOME/.cargo/bin:$PATH"
 
 usage() {
 	echo "usage: tools/prepare-release.sh [--key RELEASE_KEY ...] [--game] [--linux PAYLOAD_DIR] [--windows PAYLOAD_DIR]"
-	echo "         [--reuse PREVIOUS_VERSION|auto] [--min-patcher V] [--notes TEXT] [--patcher out/patcher/V|auto] [--latest]"
+	echo "         [--reuse PREVIOUS_VERSION|auto] [--min-patcher V] [--notes TEXT] [--patcher out/patcher/V|auto] [--changelog FILE] [--latest]"
 	echo "  --key defaults to ~/svx-keys/release.key"
 	echo "  --game takes both payloads from \$SVX_GAME_REPO/dist (default ../SVX), made by tools/package.sh <platform> release --payload"
 	echo "  --patcher auto takes the newest release build in out/patcher; --reuse auto reuses the newest earlier release in out/releases"
+	echo "  --changelog defaults to \$SVX_CHANGELOG or \$SVX_GAME_REPO/CHANGELOG.md (Keep a Changelog format); its versions are signed into the index"
 	echo "  writes out/releases/<version>/ (assets + publish-release.sh), updates releases/catalog.json and re-signs out/index/"
 	echo "  nothing is uploaded; review and run the generated scripts yourself"
 }
@@ -26,6 +27,7 @@ NOTES=""
 PATCHER=""
 LATEST=0
 GAME=0
+CHANGELOG="${SVX_CHANGELOG:-$(realpath -m "${SVX_GAME_REPO:-$ROOT/../SVX}")/CHANGELOG.md}"
 while [ $# -gt 0 ]; do
 	case "$1" in
 		--key) KEYS+=(--key "$2"); shift 2 ;;
@@ -36,6 +38,7 @@ while [ $# -gt 0 ]; do
 		--notes) NOTES="$2"; shift 2 ;;
 		--patcher) PATCHER="$2"; shift 2 ;;
 		--game) GAME=1; shift ;;
+		--changelog) CHANGELOG="$2"; shift 2 ;;
 		--latest) LATEST=1; shift ;;
 		-h|--help) usage; exit 0 ;;
 		*) usage; exit 2 ;;
@@ -63,6 +66,7 @@ if [ "$PATCHER" = auto ]; then
 fi
 [ -f trust/production/1.root.json ] || { echo "missing trust/production/1.root.json"; exit 1; }
 
+cargo update -q --workspace --offline
 cargo build -q --locked --release -p svx-release
 REL="${CARGO_TARGET_DIR:-$ROOT/target}/release/svx-release"
 CATALOG="$ROOT/releases/catalog.json"
@@ -128,6 +132,12 @@ if [ -z "$PATCHER" ]; then
 		{ echo "$PENDING"; cat "$PLAN" 2>/dev/null || true; } > "$PLAN.tmp"
 		mv "$PLAN.tmp" "$PLAN"
 	fi
+fi
+
+if [ -f "$CHANGELOG" ]; then
+	"$REL" changelog --catalog "$CATALOG" --file "$CHANGELOG" ${VERSION:+--require "$VERSION"}
+else
+	echo "WARN no changelog at $CHANGELOG; the index keeps the previous one"
 fi
 
 "$REL" index-dir --catalog "$CATALOG" "${KEYS[@]}" --roots trust/production --out "$ROOT/out/index" --prev "$ROOT/out/index/index.json"

@@ -37,6 +37,8 @@ The patcher is not code-signed yet. On first launch, Windows SmartScreen may sho
 - **Version control.** Install any published version, or restore the previous one in one click.
 - **Safe by design.** Every download is signature-checked before anything is replaced. A failed or interrupted update never leaves a broken install.
 - **Your data stays yours.** `Content`, `User`, `Cache` and `logs` are never modified.
+- **Changelog.** See what changed in every version before you update.
+- **Force close.** Ends a stuck SVX left running in the background, only for the copy in your install folder.
 - **Existing installs.** Point the patcher at a portable SVX folder and it takes over without touching your library.
 
 The game folder stays portable: `SVX.exe` / `SVX.x86_64` can still be launched directly.
@@ -54,7 +56,7 @@ The game folder stays portable: `SVX.exe` / `SVX.x86_64` can still be launched d
 | Problem | Fix |
 |---|---|
 | Game does not start | Open the patcher and click **Repair**. |
-| "SVX is running" while updating | Close the game; the update continues automatically. |
+| "SVX is running" while updating | Close the game; the update continues automatically. If it is stuck in the background, save your progress and click **Force close**. |
 | Cannot write to the folder | Choose a folder inside your home directory. |
 | "Release check failed" | Nothing was changed. Try again later; if it persists, report it. |
 | Anything else | Open an issue and attach `logs/latest.log` from the game folder. |
@@ -85,9 +87,10 @@ Open `SVX-Distribution.sln` in Rider; shared run configurations cover every task
 Requires rustup, `x86_64-w64-mingw32-gcc`, zig 0.15 with `cargo-zigbuild`, and optionally Wine.
 
 **Release flow**
-1. Game repo: set `tools/package/version.txt`, run the *Package – … Payload* configurations.
+1. Game repo: set `tools/package/version.txt`, move the `[Unreleased]` notes in `CHANGELOG.md` under a new `## [<version>] - <date>` heading ([Keep a Changelog](https://keepachangelog.com/en/1.1.0/)), run the *Package – … Payload* configurations.
 2. `tools/build.sh` if the patcher changed.
 3. `tools/prepare-release.sh --key ~/svx-keys/release.key --linux <payload> --windows <payload> [--patcher out/patcher/<version>]`
+   The changelog is read from `$SVX_CHANGELOG` or `../SVX/CHANGELOG.md` and signed into the index; `tools/sign-index.sh` re-imports it after edits.
 4. Run `publish-patcher.sh`, `publish-release.sh`, then `out/index/publish-index.sh`. Commit `releases/catalog.json`.
 
 **Distribution model.** Game files ship as pack assets in `svx-<version>` releases, patchers in `patcher-<version>` (marked Latest), and the signed release list in the `index` release. The index and manifests are Ed25519-signed against the root in `trust/production/1.root.json`; every file is SHA-256 verified. Old releases must stay published because newer releases reuse their packs.

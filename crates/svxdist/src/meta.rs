@@ -1,3 +1,4 @@
+use crate::changelog;
 use crate::error::{Error, Result};
 use crate::paths;
 use crate::platform::Platform;
@@ -91,6 +92,8 @@ pub struct Index {
     pub platforms: BTreeMap<String, PlatformIndex>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub patcher: Option<PatcherInfo>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub changelog: Vec<changelog::Entry>,
 }
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -222,7 +225,7 @@ impl Index {
                 check_sha(&a.sha256, "patcher build")?;
             }
         }
-        Ok(())
+        changelog::validate(&self.changelog)
     }
 
     pub fn platform(&self, platform: Platform) -> Option<&PlatformIndex> {

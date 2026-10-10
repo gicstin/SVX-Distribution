@@ -7,6 +7,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::time::{Duration, Instant};
+use svxdist::install::Install;
 use svxdist::paths::STATE_DIR;
 use svxdist::platform::Platform;
 use svxdist::txn::{Phase, Progress};
@@ -40,6 +41,7 @@ enum Screen {
     Picker(Pick),
     Error(Failure),
     Launched,
+    Changelog,
 }
 
 struct Picker {
@@ -65,12 +67,25 @@ struct App {
     last_job: Option<Job>,
     info: Option<(String, Color32)>,
     close_at: Option<Instant>,
+    running: Vec<u32>,
+    running_at: Option<Instant>,
+    running_busy: bool,
+    confirm_close: bool,
+    closing: bool,
 }
 
 fn install_target(path: &Path) -> PathBuf {
     let looks_svx = [Platform::current().exe_name(), "Core", "Content", STATE_DIR].iter().any(|n| path.join(n).exists());
     let empty = fs::read_dir(path).map(|mut d| d.next().is_none()).unwrap_or(true);
     if path.exists() && !empty && !looks_svx { path.join("SVX") } else { path.to_path_buf() }
+}
+
+fn task_manager() -> &'static str {
+    if cfg!(windows) { "Task Manager" } else { "your system monitor" }
+}
+
+fn danger(text: &str) -> egui::Button<'static> {
+    egui::Button::new(RichText::new(text.to_string()).size(16.0).strong().color(Color32::WHITE)).fill(BAD).min_size(Vec2::new(160.0, 36.0))
 }
 
 fn primary(text: &str) -> egui::Button<'static> {
@@ -108,6 +123,11 @@ impl App {
             last_job: None,
             info: None,
             close_at: None,
+            running: Vec::new(),
+            running_at: None,
+            running_busy: false,
+            confirm_close: false,
+            closing: false,
         };
         app.background(Job::Detect { dir });
         app.start_check();
@@ -156,6 +176,20 @@ impl App {
                     self.progress = Some(p);
                 }
                 Msg::Waiting(p) => self.waiting = Some(p),
+                Msg::Running(p) => {
+                    self.running_busy = false;
+                    self.running = p;
+                }
+                Msg::ForceClosed(r) => {
+                    self.closing = false;
+                    self.info = Some(match r {
+                        Ok(c) if c.remaining > 0 => (format!("SVX did not close. Close it from {}.", task_manager()), BAD),
+                        Ok(c) if c.closed > 1 => (format!("Closed {} copies of SVX.", c.closed), GOOD),
+                        Ok(c) if c.closed == 1 => ("Closed SVX.".into(), GOOD),
+                        Ok(_) => ("SVX was not running.".into(), GOOD),
+                        Err(f) => (f.message, BAD),
+                    });
+                }
                 Msg::Finished(r) => {
                     self.progress = None;
                     self.waiting = None;
@@ -299,6 +333,9 @@ impl App {
         if let Some(p) = &status.pending {
             ui.label(RichText::new(p).weak());
         }
+        if !matches!(status.view, View::Absent) {
+            self.running_banner(ui);
+        }
         match &status.view {
             View::Absent => {
                 ui.add_space(6.0);
@@ -318,9 +355,14 @@ impl App {
                     self.start(Job::Apply { dir, version: None, play: true }, "Installing SVX");
                 }
                 ui.add_space(8.0);
-                if ui.link("Already have SVX? Locate its folder").clicked() {
-                    self.open_picker(Pick::Locate);
-                }
+                ui.horizontal(|ui| {
+                    if ui.link("Already have SVX? Locate its folder").clicked() {
+                        self.open_picker(Pick::Locate);
+                    }
+                    if self.has_changelog() && ui.link("Changelog").clicked() {
+                        self.screen = Screen::Changelog;
+                    }
+                });
             }
             View::Unmanaged => {
                 ui.heading("SVX found");
@@ -362,7 +404,16 @@ impl App {
                 match &self.check {
                     Some(Ok(c)) => match &c.latest {
                         Some(r) if worker::newer(&r.version, version) => {
-                            ui.colored_label(ACCENT, format!("Version {} is available ({} to download at most).", r.version, human_bytes(r.download_size)));
+                            let text = format!("Version {} is available ({} to download at most).", r.version, human_bytes(r.download_size));
+                            let has_notes = !c.changelog.is_empty();
+                            let mut open = false;
+                            ui.horizontal_wrapped(|ui| {
+                                ui.colored_label(ACCENT, text);
+                                open = has_notes && ui.link("What's new").clicked();
+                            });
+                            if open {
+                                self.screen = Screen::Changelog;
+                            }
                         }
                         Some(_) => {
                             ui.colored_label(GOOD, "Up to date.");
@@ -423,6 +474,9 @@ impl App {
                 }
                 self.screen = Screen::Versions;
             }
+            if self.has_changelog() && ui.add(secondary("Changelog")).clicked() {
+                self.screen = Screen::Changelog;
+            }
             if let Some(label) = &status.rollback
                 && ui.add(secondary(&format!("Restore {label}"))).on_hover_text("Put back the files from before the last update").clicked()
             {
@@ -438,6 +492,123 @@ impl App {
             && ui.add(secondary("Update the patcher")).clicked()
         {
             self.start(Job::SelfUpdate, "Updating SVX Patcher");
+        }
+    }
+
+    fn has_changelog(&self) -> bool {
+        matches!(&self.check, Some(Ok(c)) if !c.changelog.is_empty())
+    }
+
+    fn running_banner(&mut self, ui: &mut egui::Ui) {
+        if self.running.is_empty() {
+            return;
+        }
+        let n = self.running.len();
+        egui::Frame::new().stroke(egui::Stroke::new(1.0, WARN)).inner_margin(8.0).corner_radius(4.0).show(ui, |ui| {
+            ui.set_width(ui.available_width());
+            let label = if n > 1 { format!("{n} copies of SVX are running.") } else { "SVX is running.".to_string() };
+            egui::Sides::new().height(32.0).show(
+                ui,
+                |ui| ui.colored_label(WARN, label),
+                |ui| {
+                    if ui.add_enabled(!self.closing, secondary(if self.closing { "Closing..." } else { "Force close" })).clicked() {
+                        self.confirm_close = true;
+                    }
+                },
+            );
+        });
+    }
+
+    fn close_dialog(&mut self, ctx: &egui::Context) {
+        let n = self.running.len();
+        let exe = Install::new(&self.dir, Platform::current()).exe();
+        let modal = egui::Modal::new(egui::Id::new("force_close")).show(ctx, |ui| {
+            ui.set_width(420.0);
+            ui.heading(if n > 1 { format!("Force close {n} copies of SVX?") } else { "Force close SVX?".to_string() });
+            ui.add_space(4.0);
+            egui::Frame::new().stroke(egui::Stroke::new(1.0, WARN)).inner_margin(8.0).corner_radius(4.0).show(ui, |ui| {
+                ui.set_width(ui.available_width());
+                ui.colored_label(WARN, RichText::new("Save your progress in SVX first.").strong());
+                ui.label("Force closing ends the game immediately. Scenes, poses and settings that were not saved are lost.");
+            });
+            ui.label(RichText::new("Use this when SVX is stuck or keeps running in the background after its window closed.").weak());
+            ui.label(RichText::new(format!("Only SVX started from this folder is closed:\n{}", exe.display())).small().weak());
+            ui.add_space(8.0);
+            let mut close = false;
+            ui.horizontal(|ui| {
+                if ui.add(danger("Force close")).clicked() {
+                    self.closing = true;
+                    let dir = self.dir.clone();
+                    self.background(Job::ForceClose { dir });
+                    close = true;
+                }
+                if ui.add(secondary("Cancel")).clicked() {
+                    close = true;
+                }
+            });
+            close
+        });
+        if modal.inner || modal.should_close() {
+            self.confirm_close = false;
+        }
+    }
+
+    fn poll_running(&mut self, ctx: &egui::Context) {
+        if !matches!(self.screen, Screen::Main | Screen::Busy(_)) || self.status.is_none() {
+            return;
+        }
+        let every = Duration::from_millis(1500);
+        if !self.running_busy && self.running_at.is_none_or(|t| t.elapsed() >= every) {
+            self.running_busy = true;
+            self.running_at = Some(Instant::now());
+            let dir = self.dir.clone();
+            self.background(Job::Running { dir });
+        }
+        ctx.request_repaint_after(every);
+    }
+
+    fn changelog_screen(&mut self, ui: &mut egui::Ui) {
+        ui.heading("Changelog");
+        let installed = self.installed_version();
+        let latest = self.latest().map(|r| r.version.clone());
+        let entries = match &self.check {
+            Some(Ok(c)) => c.changelog.clone(),
+            _ => Vec::new(),
+        };
+        let height = (ui.available_height() - 70.0).max(120.0);
+        egui::ScrollArea::vertical().max_height(height).auto_shrink([false, true]).show(ui, |ui| {
+            for e in &entries {
+                ui.horizontal_wrapped(|ui| {
+                    ui.label(RichText::new(&e.version).size(19.0).strong());
+                    if !e.date.is_empty() {
+                        ui.label(RichText::new(&e.date).weak());
+                    }
+                    if Some(&e.version) == latest.as_ref() {
+                        ui.colored_label(ACCENT, "latest");
+                    }
+                    if Some(&e.version) == installed.as_ref() {
+                        ui.colored_label(GOOD, "installed");
+                    } else if installed.as_ref().is_some_and(|i| worker::newer(&e.version, i)) {
+                        ui.colored_label(ACCENT, "new");
+                    }
+                });
+                for s in &e.sections {
+                    if !s.title.is_empty() {
+                        ui.label(RichText::new(&s.title).strong().color(ACCENT));
+                    }
+                    for item in &s.items {
+                        ui.horizontal_top(|ui| {
+                            ui.add_space(8.0);
+                            ui.label("•");
+                            ui.add(egui::Label::new(item).wrap());
+                        });
+                    }
+                }
+                ui.separator();
+            }
+        });
+        if ui.add(secondary("Back")).clicked() {
+            self.screen = Screen::Main;
         }
     }
 
@@ -528,6 +699,9 @@ impl App {
             egui::Frame::new().stroke(egui::Stroke::new(1.0, WARN)).inner_margin(8.0).show(ui, |ui| {
                 ui.set_width(ui.available_width());
                 ui.colored_label(WARN, format!("SVX is running (process {pids:?}). Close the game; the update continues on its own."));
+                if !self.running.is_empty() && ui.add_enabled(!self.closing, secondary(if self.closing { "Closing..." } else { "Force close SVX" })).clicked() {
+                    self.confirm_close = true;
+                }
             });
         }
         let p = self.progress.clone().unwrap_or_default();
@@ -671,6 +845,7 @@ fn existing_ancestor(p: &Path) -> PathBuf {
 impl eframe::App for App {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         self.poll();
+        self.poll_running(ui.ctx());
         if let Some(t) = self.close_at {
             if Instant::now() >= t {
                 ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
@@ -710,8 +885,17 @@ impl eframe::App for App {
                     ui.heading("SVX is starting...");
                     ui.label("Have fun. The patcher closes now.");
                 }
+                Screen::Changelog => self.changelog_screen(ui),
             }
             ui.with_layout(Layout::bottom_up(Align::LEFT), |ui| self.footer(ui));
         });
+        if self.confirm_close {
+            if self.running.is_empty() {
+                self.confirm_close = false;
+            } else {
+                let ctx = ui.ctx().clone();
+                self.close_dialog(&ctx);
+            }
+        }
     }
 }

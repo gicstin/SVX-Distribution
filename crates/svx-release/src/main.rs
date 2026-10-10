@@ -28,6 +28,7 @@ const USAGE: &str = "svx-release <command> [options]
                 [--pack-limit BYTES] [--level 0-9] [--notes TEXT]
   catalog-add   --catalog FILE --platform P --entry FILE [--latest]
   withdraw      --catalog FILE --platform P --version V
+  changelog     --catalog FILE --file CHANGELOG.md [--require V]
   patcher       --catalog FILE --version V --base-url URL [--linux FILE] [--windows FILE]
   index         --catalog FILE --key KEY... [--prev FILE] --out FILE
   index-dir     --catalog FILE --key KEY... --roots DIR --out DIR [--prev FILE]
@@ -325,6 +326,23 @@ fn withdraw(a: &Args) -> Result<()> {
     save_catalog(&path, &c)
 }
 
+fn changelog_cmd(a: &Args) -> Result<()> {
+    let path = a.req("catalog")?;
+    let file = a.req("file")?;
+    let text = String::from_utf8(read(&file)?).map_err(|_| usage("changelog is not UTF-8"))?;
+    let entries = svxdist::changelog::parse(&text)?;
+    let mut c = load_catalog(&path)?;
+    let versions: Vec<&str> = entries.iter().map(|e| e.version.as_str()).collect();
+    println!("changelog: {} version(s) {}", entries.len(), versions.join(", "));
+    if let Some(v) = a.opt("require")
+        && !versions.contains(&v.as_str())
+    {
+        eprintln!("WARN changelog has no entry for {v}");
+    }
+    c.changelog = entries;
+    save_catalog(&path, &c)
+}
+
 fn patcher_cmd(a: &Args) -> Result<()> {
     let path = a.req("catalog")?;
     let mut c = load_catalog(&path)?;
@@ -515,6 +533,7 @@ fn run() -> Result<()> {
         "release" => release_cmd(&a),
         "catalog-add" => catalog_add(&a),
         "withdraw" => withdraw(&a),
+        "changelog" => changelog_cmd(&a),
         "patcher" => patcher_cmd(&a),
         "index" => index_cmd(&a),
         "index-dir" => site_cmd(&a),

@@ -4,10 +4,12 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::Sender;
 use std::time::Duration;
+use svxdist::changelog;
 use svxdist::install::{Detected, Install};
 use svxdist::launch::{self, Outcome};
 use svxdist::meta::ReleaseRef;
 use svxdist::platform::Platform;
+use svxdist::procs::{self, CloseReport};
 use svxdist::session::{self, Session};
 use svxdist::txn::{self, Plan, Progress, Recovery};
 use svxdist::version::Version;
@@ -22,6 +24,8 @@ pub enum Job {
     Rollback { dir: PathBuf },
     Play { dir: PathBuf },
     SelfUpdate,
+    Running { dir: PathBuf },
+    ForceClose { dir: PathBuf },
 }
 
 #[derive(Clone, Debug)]
@@ -46,6 +50,7 @@ pub struct CheckInfo {
     pub releases: Vec<ReleaseRef>,
     pub latest: Option<ReleaseRef>,
     pub patcher_update: Option<String>,
+    pub changelog: Vec<changelog::Entry>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -77,6 +82,8 @@ pub enum Msg {
     Checked(std::result::Result<CheckInfo, Failure>),
     Progress(Progress),
     Waiting(Vec<u32>),
+    Running(Vec<u32>),
+    ForceClosed(std::result::Result<CloseReport, Failure>),
     Finished(std::result::Result<Done, Failure>),
 }
 
@@ -140,7 +147,17 @@ pub fn run(job: Job, ctx: &Ctx) {
             let r = self_update(ctx).map_err(failure);
             ctx.send(Msg::Finished(r));
         }
+        Job::Running { dir } => ctx.send(Msg::Running(procs::instances_of(&game_exe(&dir)))),
+        Job::ForceClose { dir } => {
+            let r = procs::force_close(&game_exe(&dir), Duration::from_secs(5)).map_err(failure);
+            ctx.send(Msg::ForceClosed(r));
+            ctx.send(Msg::Running(procs::instances_of(&game_exe(&dir))));
+        }
     }
+}
+
+fn game_exe(dir: &Path) -> PathBuf {
+    Install::new(dir, Platform::current()).exe()
 }
 
 fn finish(dir: &Path, r: std::result::Result<Done, Failure>, ctx: &Ctx) {
@@ -199,7 +216,12 @@ fn check(ctx: &Ctx) -> Result<CheckInfo> {
     let platform = s.cfg.platform;
     let idx = s.check()?.clone();
     let patcher_update = selfupdate::available(&idx, s.cfg.patcher_version, platform).map(|(v, _)| v.to_string());
-    Ok(CheckInfo { releases: s.releases(), latest: idx.platform(platform).and_then(|p| p.latest_ref()).cloned(), patcher_update })
+    Ok(CheckInfo {
+        releases: s.releases(),
+        latest: idx.platform(platform).and_then(|p| p.latest_ref()).cloned(),
+        patcher_update,
+        changelog: idx.changelog.clone(),
+    })
 }
 
 type PlanFn<'a> = dyn FnMut(&mut Session, &Install, &mut dyn FnMut(&Progress)) -> Result<Plan> + 'a;

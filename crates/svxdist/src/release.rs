@@ -1,3 +1,4 @@
+use crate::changelog;
 use crate::error::{Error, Result};
 use crate::meta::{self, Artifact, Encoding, FileEntry, Index, Launch, Manifest, Pack, PatcherInfo, PlatformIndex, ReleaseRef, SPEC};
 use crate::paths::{self, PROTECTED};
@@ -275,6 +276,8 @@ pub struct Catalog {
     pub platforms: BTreeMap<String, PlatformIndex>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub patcher: Option<PatcherInfo>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub changelog: Vec<changelog::Entry>,
 }
 
 impl Catalog {
@@ -308,7 +311,15 @@ impl Catalog {
     }
 
     pub fn to_index(&self, version: u64) -> Index {
-        Index { kind: "index".into(), spec: SPEC, version, channel: self.channel.clone(), platforms: self.platforms.clone(), patcher: self.patcher.clone() }
+        Index {
+            kind: "index".into(),
+            spec: SPEC,
+            version,
+            channel: self.channel.clone(),
+            platforms: self.platforms.clone(),
+            patcher: self.patcher.clone(),
+            changelog: self.changelog.clone(),
+        }
     }
 }
 

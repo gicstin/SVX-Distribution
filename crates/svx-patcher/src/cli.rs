@@ -25,9 +25,11 @@ pub fn main(args: &[String]) -> i32 {
         "rollback" => Job::Rollback { dir: dir.clone() },
         "play" => Job::Play { dir: dir.clone() },
         "self-update" => Job::SelfUpdate,
+        "running" => Job::Running { dir: dir.clone() },
+        "close-game" => Job::ForceClose { dir: dir.clone() },
         _ => {
             eprintln!(
-                "usage: svx-patcher --cli <status|check|install|repair|rollback|play|self-update> [--dir DIR] [--version V] [--play] [--no-wait] [--report FILE]"
+                "usage: svx-patcher --cli <status|check|install|repair|rollback|play|self-update|running|close-game> [--dir DIR] [--version V] [--play] [--no-wait] [--report FILE]"
             );
             return 2;
         }
@@ -54,6 +56,25 @@ pub fn main(args: &[String]) -> i32 {
                     cancel.store(true, Ordering::Relaxed);
                 }
             }
+            Msg::Running(pids) => {
+                println!("running {pids:?}");
+                result["running"] = json!(pids);
+            }
+            Msg::ForceClosed(r) => match r {
+                Ok(c) => {
+                    println!("closed {} remaining {}", c.closed, c.remaining);
+                    result["closed"] = json!(c.closed);
+                    result["remaining"] = json!(c.remaining);
+                    if c.remaining > 0 {
+                        result["ok"] = json!(false);
+                    }
+                }
+                Err(f) => {
+                    println!("error {}", f.message);
+                    result["ok"] = json!(false);
+                    result["error"] = json!(f.message);
+                }
+            },
             Msg::Status(s) => {
                 let view = match &s.view {
                     View::Absent => json!({ "state": "absent" }),
@@ -75,6 +96,7 @@ pub fn main(args: &[String]) -> i32 {
                     result["latest"] = json!(c.latest.map(|r| r.version));
                     result["offered"] = json!(versions);
                     result["patcher_update"] = json!(c.patcher_update);
+                    result["changelog"] = json!(c.changelog);
                 }
                 Err(f) => {
                     println!("error {}", f.message);

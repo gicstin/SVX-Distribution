@@ -81,6 +81,8 @@ for plat in $PLATFORMS; do
 	done
 	"$REL" publish-plan --release-dir "$WORK/rel/$plat-1.1.0" --repo gicstin/SVX-Distribution --tag "svx-1.1.0" --kind game --out "$WORK/publish-$plat.sh" >/dev/null
 done
+printf '# Changelog\n\n## [Unreleased]\n\n## [1.1.0] - 2026-10-11\n### Added\n- Added file\n\n## [1.0.0] - 2026-10-10\n- First\n' > "$WORK/CHANGELOG.md"
+"$REL" changelog --catalog "$CATALOG" --file "$WORK/CHANGELOG.md" --require 1.1.0 >/dev/null
 publish 1.0.0
 "$REL" verify --root trust/test/1.root.json --index "$SITE/index.json"
 
@@ -141,6 +143,7 @@ scenario() {
 	check "$r" 'r["status"]["state"]=="absent"' "absent before install"
 	p check --dir "$dirarg"
 	check "$r" 'r["latest"]=="1.0.0" and r["offered"]==["1.1.0","1.0.0"] and r["test_build"]' "check sees signed index"
+	check "$r" '[e["version"] for e in r["changelog"]]==["1.1.0","1.0.0"] and r["changelog"][0]["sections"][0]["items"]==["Added file"]' "check sees signed changelog"
 	p install --dir "$dirarg" --play
 	check "$r" 'r["ok"] and r["done"]["applied"]=="1.0.0" and r["done"]["launched"]' "fresh install and play"
 	[ -s "$WORK/marker-$plat" ] && echo "  ok   game launched" || { echo "  FAIL game launched"; FAILS=$((FAILS + 1)); }
@@ -176,12 +179,29 @@ scenario() {
 		SVX_FIXTURE_SLEEP=30 wine "$dir/$exe" &
 	fi
 	local game=$!
+	mkdir -p "$WORK/other-$plat"
+	cp "$dir/$exe" "$WORK/other-$plat/$exe"
+	if [ "$plat" = linux ]; then
+		SVX_FIXTURE_SLEEP=30 "$dir/$exe" &
+		SVX_FIXTURE_SLEEP=30 "$WORK/other-$plat/$exe" &
+	else
+		SVX_FIXTURE_SLEEP=30 wine "$dir/$exe" &
+		SVX_FIXTURE_SLEEP=30 wine "$WORK/other-$plat/$exe" &
+	fi
+	local other=$!
 	sleep 3
 	p install --dir "$dirarg" --version 1.0.0 --no-wait
 	check "$r" 'not r["ok"] and r.get("waited_for_game") and r["status"]["version"]=="1.1.0"' "running game blocks replacement"
-	kill "$game" 2>/dev/null || true
+	p running --dir "$dirarg"
+	check "$r" 'len(r["running"])==2' "both running copies found"
+	p close-game --dir "$dirarg"
+	check "$r" 'r["ok"] and r["closed"]==2 and r["remaining"]==0' "force close ends both copies"
+	p running --dir "$dirarg"
+	check "$r" 'r["running"]==[]' "nothing left running in the install"
+	kill -0 "$other" 2>/dev/null && echo "  ok   copy outside the install kept running" || { echo "  FAIL other copy was closed"; FAILS=$((FAILS + 1)); }
+	kill "$other" "$game" 2>/dev/null || true
 	[ "$plat" = windows ] && { wineserver -k 2>/dev/null || true; sleep 1; }
-	wait "$game" 2>/dev/null || true
+	wait "$game" "$other" 2>/dev/null || true
 	p install --dir "$dirarg" --version 1.0.0
 	check "$r" 'r["ok"] and r["done"]["applied"]=="1.0.0"' "downgrade after game closed"
 

@@ -5,6 +5,7 @@ ROOT="$PWD"
 export PATH="$HOME/.cargo/bin:$PATH"
 ZIG_DIR="${ZIG_DIR:-$HOME/.local/opt/zig-x86_64-linux-0.15.2}"
 [ -d "$ZIG_DIR" ] && export PATH="$ZIG_DIR:$PATH"
+cargo update -q --workspace --offline
 
 usage() {
 	echo "usage: tools/build.sh [--test] [--linux-only|--windows-only]"

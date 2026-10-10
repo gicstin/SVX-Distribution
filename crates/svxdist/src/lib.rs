@@ -1,3 +1,4 @@
+pub mod changelog;
 pub mod dirs;
 pub mod error;
 pub mod install;
