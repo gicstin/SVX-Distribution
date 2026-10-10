@@ -1,0 +1,38 @@
+{
+  "signed": {
+    "expires": "2099-12-31T00:00:00Z",
+    "keys": {
+      "0c0b61bd2af30cd6e0d79de8a0c151909b2d5260d2f338358087c9abf9ee2611": {
+        "public": "e0980b76f7b9a1dc0b8aab747de2136fba1c97e7ed7e8e2cc41f5509b2ff282f",
+        "scheme": "ed25519"
+      },
+      "cefa8ca5d5a6a19bc80554b2ef95b5f1701bc910060a00918809c63ce15328eb": {
+        "public": "1aeb038d531ac188ac22350b8e53255db7b4008ae5a14e03d9bf0dcaf4517475",
+        "scheme": "ed25519"
+      }
+    },
+    "roles": {
+      "release": {
+        "keyids": [
+          "0c0b61bd2af30cd6e0d79de8a0c151909b2d5260d2f338358087c9abf9ee2611"
+        ],
+        "threshold": 1
+      },
+      "root": {
+        "keyids": [
+          "cefa8ca5d5a6a19bc80554b2ef95b5f1701bc910060a00918809c63ce15328eb"
+        ],
+        "threshold": 1
+      }
+    },
+    "spec": 1,
+    "type": "root",
+    "version": 1
+  },
+  "signatures": [
+    {
+      "keyid": "cefa8ca5d5a6a19bc80554b2ef95b5f1701bc910060a00918809c63ce15328eb",
+      "sig": "MTw7wn5F5z+87CWAN/S10jpek3RhCJWnjPg+wvTkigrh9whI1MbTgO9W8hGgF1yxtZ6tjVdVYH+8dgSs1sL9Bw=="
+    }
+  ]
+}

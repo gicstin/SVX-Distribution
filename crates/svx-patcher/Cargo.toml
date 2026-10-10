@@ -1,0 +1,20 @@
+[package]
+name = "svx-patcher"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+svxdist.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+url.workspace = true
+eframe = { version = "0.36", default-features = false, features = ["default_fonts", "glow", "wayland", "x11"] }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_System_Console"] }
+
+[build-dependencies]
+svxdist.workspace = true
+embed-resource = "3"

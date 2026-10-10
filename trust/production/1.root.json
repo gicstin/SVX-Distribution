@@ -1,0 +1,38 @@
+{
+  "signed": {
+    "expires": "2031-10-10T00:00:00Z",
+    "keys": {
+      "cb1b4eeaee0d84274eee9a9b63eb5e2513a0541d55fb12e5f6deb8bd1024a4d1": {
+        "public": "0af68db9d4a19990c2b82783db142a8fd9578050441a5db029fe4a60672c92cf",
+        "scheme": "ed25519"
+      },
+      "dc80c83d820fdfe136e7e6b8938701553ac98ae34e844fe30aa44f61b31a4f14": {
+        "public": "145e6733aa9ff663f609db5a5ecc50c8cdd5d0860e37d3caf0231067b621446b",
+        "scheme": "ed25519"
+      }
+    },
+    "roles": {
+      "release": {
+        "keyids": [
+          "dc80c83d820fdfe136e7e6b8938701553ac98ae34e844fe30aa44f61b31a4f14"
+        ],
+        "threshold": 1
+      },
+      "root": {
+        "keyids": [
+          "cb1b4eeaee0d84274eee9a9b63eb5e2513a0541d55fb12e5f6deb8bd1024a4d1"
+        ],
+        "threshold": 1
+      }
+    },
+    "spec": 1,
+    "type": "root",
+    "version": 1
+  },
+  "signatures": [
+    {
+      "keyid": "cb1b4eeaee0d84274eee9a9b63eb5e2513a0541d55fb12e5f6deb8bd1024a4d1",
+      "sig": "PiscItYN9GfiGP1uwHVDhYgn0AJSQqw1T+s5F5yzXOAGzi4kdLW/j08Aw6V/8PGMKNAXMLcZ+h5bk9b7ZcLdDA=="
+    }
+  ]
+}

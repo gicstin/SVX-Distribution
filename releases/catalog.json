@@ -1,0 +1,60 @@
+{
+  "channel": "stable",
+  "platforms": {
+    "linux-x86_64": {
+      "latest": "0.1.0",
+      "releases": [
+        {
+          "version": "0.1.0",
+          "build": 68,
+          "date": "2026-10-10T08:17:36Z",
+          "manifest": {
+            "url": "https://github.com/gicstin/SVX-Distribution/releases/download/svx-0.1.0/manifest-linux-x86_64.json",
+            "sha256": "e6c95bfdf11cef4ab33bdb0d76d9f0997d2d3d81ea1113a1624f4e8818f87a5c",
+            "size": 18798
+          },
+          "download_size": 190856141,
+          "install_size": 354154117,
+          "min_patcher": "0.1.0",
+          "notes": "",
+          "withdrawn": false
+        }
+      ]
+    },
+    "windows-x86_64": {
+      "latest": "0.1.0",
+      "releases": [
+        {
+          "version": "0.1.0",
+          "build": 68,
+          "date": "2026-10-10T08:21:08Z",
+          "manifest": {
+            "url": "https://github.com/gicstin/SVX-Distribution/releases/download/svx-0.1.0/manifest-windows-x86_64.json",
+            "sha256": "98d736f5fe5a77941a2365a1cb4228129e8bebaa34574e04753420c7aceba85f",
+            "size": 18803
+          },
+          "download_size": 200603065,
+          "install_size": 392455906,
+          "min_patcher": "0.1.0",
+          "notes": "",
+          "withdrawn": false
+        }
+      ]
+    }
+  },
+  "patcher": {
+    "version": "0.1.0",
+    "builds": {
+      "linux-x86_64": {
+        "url": "https://github.com/gicstin/SVX-Distribution/releases/download/patcher-0.1.0/svx-patcher",
+        "sha256": "1902e5f4c483772fd9f1c82ad2c821cc8bb37b0ab2c1e74cb01c226fbef066a8",
+        "size": 8779920
+      },
+      "windows-x86_64": {
+        "url": "https://github.com/gicstin/SVX-Distribution/releases/download/patcher-0.1.0/SVXPatcher.exe",
+        "sha256": "d42ead6ce6951b517b12aa6bf61d76e420816b3e4c14571349ea101ecff96453",
+        "size": 7000576
+      }
+    }
+  }
+}

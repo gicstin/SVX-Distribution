@@ -1,0 +1,17 @@
+Copyright (c) 2026 gicstin. All rights reserved.
+
+This repository and the SVX Patcher binaries built from it are proprietary.
+No permission is granted to copy, modify, merge, publish, distribute,
+sublicense or sell the source code or binaries, in whole or in part,
+without prior written permission from the copyright holder.
+
+You may download and run official SVX Patcher builds published by the
+copyright holder in order to install, update, repair and play SVX.
+
+Third-party components used by the SVX Patcher are licensed under their own
+terms (mostly MIT and Apache-2.0). Their licenses are listed in Cargo.lock
+dependencies and apply to those components only.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED. IN NO EVENT SHALL THE COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM,
+DAMAGES OR OTHER LIABILITY ARISING FROM THE USE OF THE SOFTWARE.

@@ -1,0 +1,14 @@
+/target/
+/out/
+/work/
+*.key
+*.pack
+/.idea/**/workspace.xml
+/.idea/**/tasks.xml
+/.idea/**/usage.statistics.xml
+/.idea/**/shelf/
+/.idea/**/contentModel.xml
+/.idea/**/projectSettingsUpdater.xml
+/.idea/**/*.iml
+/.idea/**/.name
+/.idea/**/vcs.xml

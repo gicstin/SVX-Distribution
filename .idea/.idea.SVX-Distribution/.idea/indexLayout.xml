@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="UserContentModel">
+    <attachedFolders>
+      <Path>.</Path>
+    </attachedFolders>
+    <explicitIncludes />
+    <explicitExcludes>
+      <Path>target</Path>
+      <Path>work</Path>
+      <Path>out</Path>
+      <Path>public</Path>
+      <Path>.git</Path>
+    </explicitExcludes>
+  </component>
+</project>
